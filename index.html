@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Servicios</title>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <!-- Librerías para exportar -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {margin:0; padding:0; box-sizing:border-box; font-family:Arial, sans-serif;}
+        body {background:#f0f4f8; padding:20px; max-width:780px; margin:0 auto; padding-bottom:60px;}
+        h1 {color:#2c3e50; text-align:center; margin-bottom:25px; font-size:22px;}
+
+        #pantallaLogin {background:white; padding:30px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-top:60px;}
+        .form-group {margin-bottom:18px;}
+        label {display:block; margin-bottom:6px; font-weight:600; color:#34495e; font-size:14px;}
+        input, select, textarea {width:100%; padding:10px; border:1px solid #bdc3c7; border-radius:6px; font-size:15px;}
+        button {background:#27ae60; color:white; border:none; padding:12px; width:100%; border-radius:6px; font-weight:bold; cursor:pointer; font-size:16px; margin-top:8px;}
+        button:hover {background:#219653;}
+        .secundario {background:#3498db;}
+        .secundario:hover {background:#2980b9;}
+        .cancelar {background:#e74c3c; display:none;}
+        .cancelar:hover {background:#c0392b;}
+        .exportar {background:#8e44ad; margin:4px 0;}
+        .exportar:hover {background:#6c3483;}
+        .error {color:#e74c3c; font-size:14px; margin-top:5px; display:none;}
+        .registro-link {text-align:center; margin-top:15px; color:#2980b9; cursor:pointer; text-decoration:underline; font-size:14px;}
+
+        .selector-mes {background:white; padding:15px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-bottom:20px; display:flex; flex-direction:column; gap:12px; align-items:center;}
+        .campos-fila {display:flex; gap:12px; width:100%; flex-wrap:wrap;}
+        .selector-mes select, .selector-mes input {flex:1; padding:8px 12px; border-radius:6px; border:1px solid #bdc3c7; font-size:15px; min-width:120px;}
+        .selector-mes button {width:auto; padding:8px 12px; font-size:15px; white-space:nowrap;}
+
+        .contadores {background:white; padding:15px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-bottom:20px; display:flex; justify-content:space-around; text-align:center; flex-wrap:wrap; gap:10px;}
+        .contador-item {flex:1; min-width:110px; padding:6px 4px; border-radius:8px; transition:background 0.2s;}
+        .contador-item h3 {margin:0; color:#555; font-size:13px;}
+        .contador-item span {display:block; font-size:24px; font-weight:bold; margin-top:4px; cursor:pointer; transition:all 0.2s;}
+        .contador-item span:hover {transform:scale(1.08);}
+
+        /* 🎨 COLORES POR GRUPO EN CONTADORES */
+        .contador-item:nth-child(1) span {color:#27ae60;}  /* Instalaciones - Verde */
+        .contador-item:nth-child(2) span {color:#8e44ad;}  /* Mudanzas - Morado */
+        .contador-item:nth-child(3) span {color:#f39c12;}  /* Soportes - Naranja */
+        .contador-item:nth-child(4) span {color:#2980b9;}  /* Total - Azul */
+
+        /* 🟢 Estado activo según el grupo */
+        .contador-item.activo-inst {background:#eafaf1;}
+        .contador-item.activo-inst span {color:#27ae60; border-bottom:2px solid #27ae60; padding-bottom:2px;}
+
+        .contador-item.activo-mud {background:#f5eef8;}
+        .contador-item.activo-mud span {color:#8e44ad; border-bottom:2px solid #8e44ad; padding-bottom:2px;}
+
+        .contador-item.activo-sop {background:#fef5e7;}
+        .contador-item.activo-sop span {color:#f39c12; border-bottom:2px solid #f39c12; padding-bottom:2px;}
+
+        .contador-item.activo-todos {background:#ebf5fb;}
+        .contador-item.activo-todos span {color:#2980b9; border-bottom:2px solid #2980b9; padding-bottom:2px;}
+
+        .barra-superior {background:#2980b9; color:white; padding:10px 15px; border-radius:8px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;}
+        .barra-superior button {width:auto; padding:6px 12px; background:#e74c3c; font-size:14px; margin:0;}
+        .etiqueta-tecnico {font-size:13px; margin-top:4px; opacity:0.9;}
+
+        .form-container {background:white; padding:25px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); margin-bottom:25px;}
+        .edicion-activa {border:2px solid #2980b9; background:#f8fcfe;}
+        .hidden {display:none !important;}
+        input[readonly] {background:#ecf0f1;}
+
+        .resumen-container {background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+        .botones-exportar {display:flex; gap:8px; flex-wrap:wrap; margin-bottom:15px;}
+        .botones-exportar button {flex:1; min-width:120px; padding:8px; font-size:14px;}
+        .total-mes {font-size:22px; font-weight:bold; color:#2980b9; text-align:center; padding:10px; background:#eaf2f8; border-radius:8px; margin-bottom:15px;}
+        .lista-registros {list-style:none;}
+        .registro-item {padding:12px; border-bottom:1px solid #eee; margin-bottom:8px; border-radius:6px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;}
+        .registro-contenido {flex:1; min-width:200px;}
+
+        /* 🎨 COLORES DE BORDE IZQUIERDO POR TIPO */
+        .tipo-instalacion {border-left:5px solid #27ae60; background:#f8fdf9;}
+        .tipo-mudanza     {border-left:5px solid #8e44ad; background:#fbf7fc;}
+        .tipo-soporte     {border-left:5px solid #f39c12; background:#fffbf2;}
+
+        .btn-editar {background:#f39c12; padding:6px 10px; font-size:13px; width:auto; margin:0; border-radius:4px;}
+        .btn-editar:hover {background:#e67e22;}
+        .btn-eliminar {background:#c0392b; padding:6px 10px; font-size:13px; width:auto; margin:0; border-radius:4px;}
+        .btn-eliminar:hover {background:#922b21;}
+        .mensaje {padding:10px; margin:10px 0; border-radius:6px; text-align:center; display:none;}
+        .exito {background:#d4edda; color:#155724; display:block;}
+        .fallo {background:#f8d7da; color:#721c24; display:block;}
+        .cargando {text-align:center; color:#666; padding:15px;}
+
+        .pie-pagina {
+            position:fixed;
+            bottom:0;
+            left:0;
+            width:100%;
+            background:#fff;
+            text-align:center;
+            padding:8px;
+            font-size:13px;
+            color:#666;
+            border-top:1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📋 Gestión de Servicios</h1>
+
+    <div id="pantallaLogin">
+        <h2 style="text-align:center; margin-bottom:20px;">Acceso al Sistema</h2>
+        <div class="form-group">
+            <label>Correo Electrónico</label>
+            <input type="email" id="correo" placeholder="correo@ejemplo.com">
+        </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="clave" placeholder="Mínimo 6 caracteres">
+            <div class="error" id="errorAuth">Datos incorrectos o sin conexión</div>
+        </div>
+        <button onclick="iniciarSesion()">Entrar</button>
+        <button class="secundario" onclick="mostrarRegistro()">Crear Cuenta Nueva</button>
+    </div>
+
+    <div id="pantallaRegistro" class="hidden">
+        <h2 style="text-align:center; margin-bottom:20px;">Crear Nueva Cuenta</h2>
+        <div class="form-group">
+            <label>Correo Electrónico</label>
+            <input type="email" id="nuevoCorreo">
+        </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="nuevaClave">
+        </div>
+        <div class="form-group">
+            <label>Tipo de Usuario:</label>
+            <select id="tipoUsuarioReg">
+                <option value="AY">Ayudante A</option>
+                <option value="BL">Técnico Líder B</option>
+                <option value="AL">Técnico Líder A</option>
+            </select>
+        </div>
+        <button onclick="crearCuenta()">Registrarse</button>
+        <div class="registro-link" onclick="volverLogin()">¿Ya tienes cuenta? Inicia sesión</div>
+    </div>
+
+    <div id="pantallaApp" class="hidden">
+        <div class="barra-superior">
+            <div>
+                <span id="correoUsuario"></span>
+                <div class="etiqueta-tecnico">Rol: <strong id="tipoUsuarioMostrar"></strong></div>
+            </div>
+            <button onclick="cerrarSesion()">Salir</button>
+        </div>
+
+        <!-- 🔍 FILTROS Y BÚSQUEDA -->
+        <div class="selector-mes">
+            <div class="campos-fila">
+                <select id="mesElegido">
+                    <option value="0">Enero</option>
+                    <option value="1">Febrero</option>
+                    <option value="2">Marzo</option>
+                    <option value="3">Abril</option>
+                    <option value="4">Mayo</option>
+                    <option value="5">Junio</option>
+                    <option value="6">Julio</option>
+                    <option value="7">Agosto</option>
+                    <option value="8">Septiembre</option>
+                    <option value="9">Octubre</option>
+                    <option value="10">Noviembre</option>
+                    <option value="11">Diciembre</option>
+                </select>
+                <select id="anioElegido"></select>
+                <input type="text" id="buscarNombre" placeholder="Buscar por nombre..." oninput="cargarDatos()">
+                <button onclick="cambiarMes()">Ver / Quitar filtro</button>
+            </div>
+        </div>
+
+        <!-- 📊 CONTADORES -->
+        <div class="contadores">
+            <div class="contador-item">
+                <h3>Instalaciones</h3>
+                <span id="contadorInstalacion" onclick="filtrarPorContador('instalacion')">0</span>
+            </div>
+            <div class="contador-item">
+                <h3>Mudanzas</h3>
+                <span id="contadorMudanza" onclick="filtrarPorContador('mudanza')">0</span>
+            </div>
+            <div class="contador-item">
+                <h3>Soportes / Servicios</h3>
+                <span id="contadorSoporte" onclick="filtrarPorContador('soporte')">0</span>
+            </div>
+            <div class="contador-item">
+                <h3>Total General</h3>
+                <span id="contadorGeneral" onclick="filtrarPorContador('todos')">0</span>
+            </div>
+        </div>
+
+        <div id="mensajeEstado" class="mensaje"></div>
+
+        <!-- 📝 FORMULARIO: NUEVO / EDITAR -->
+        <div class="form-container" id="formularioServicio">
+            <input type="hidden" id="idRegistroEditar">
+            <div class="form-group">
+                <label>Fecha:</label>
+                <input type="date" id="fecha">
+            </div>
+            <div class="form-group">
+                <label>Nombre del Cliente:</label>
+                <input type="text" id="nombre" placeholder="Nombre completo">
+                <div class="error" id="errorNombre">Obligatorio</div>
+            </div>
+            <div class="form-group">
+                <label>Cédula / Identificación:</label>
+                <input type="text" id="cedula" placeholder="Número de identificación">
+                <div class="error" id="errorCedula">Obligatorio</div>
+            </div>
+            <div class="form-group">
+                <label>Tipo de Servicio:</label>
+                <select id="tipoServicio" onchange="cambiarTipoServicio()">
+                    <option value="servicio_integral">Servicio integral de instalación nueva</option>
+                    <option value="mudanza">Mudanzas</option>
+                    <option value="troncal_nueva">Troncal nueva (c/300mts)</option>
+                    <option value="troncal_reemplazada">Troncal reemplazada (c/300mts)</option>
+                    <option value="caja_nap_sangrado">Caja NAP con técnico de sangrado</option>
+                    <option value="caja_nap_interconexion">Caja NAP de interconexión</option>
+                    <option value="soporte_estandar">Soporte estándar</option>
+                    <option value="actualizacion_caja">Actualización de caja</option>
+                    <option value="manga1">Manga 1 tubing</option>
+                    <option value="manga2">Manga 2 tubing</option>
+                    <option value="manga3">Manga 3 tubing</option>
+                    <option value="manga4">Manga 4 tubing</option>
+                    <option value="hora_pon">Horario pon por hora</option>
+                    <option value="mantenimiento_general">Mantenimiento general por hora</option>
+                </select>
+            </div>
+            <div class="form-group" id="campoSerial">
+                <label>Serial / Detalle:</label>
+                <input type="text" id="serial" placeholder="Datos adicionales">
+            </div>
+            <div class="form-group">
+                <label>Precio Unitario ($):</label>
+                <input type="number" id="precio" readonly step="0.01">
+            </div>
+            <button id="btnGuardar" onclick="guardarServicio()">Guardar Registro</button>
+            <button id="btnCancelar" class="cancelar" onclick="cancelarEdicion()">Cancelar Edición</button>
+        </div>
+
+        <div class="resumen-container">
+            <div class="botones-exportar">
+                <button class="exportar" onclick="exportarExcel()">📊 Exportar a Excel</button>
+                <button class="exportar" onclick="exportarPDF()">📄 Exportar a PDF</button>
+            </div>
+
+            <div class="total-mes">Total en dinero del mes: $ <span id="totalMes">0.00</span></div>
+            <h3>Registros guardados <small id="etiquetaFiltroActivo" style="color:#666; font-weight:normal;"></small></h3>
+            <div id="cargando" class="cargando">Cargando datos...</div>
+            <ul class="lista-registros" id="listaServicios"></ul>
+        </div>
+    </div>
+
+    <div class="pie-pagina">
+        Hecho por: Argenis Xavier Martínez Peñalver
+    </div>
+
+    <script>
+        // 🔴 PEGA AQUÍ TU CONFIGURACIÓN COMPLETA
+        const firebaseConfig = {
+           apiKey: "AIzaSyBOuPyOM25ix-mn7QpzrU77cQUM5_nbYbA",
+           authDomain: "registro-de-servicios-tecnicos.firebaseapp.com",
+           projectId: "registro-de-servicios-tecnicos",
+           storageBucket: "registro-de-servicios-tecnicos.firebasestorage.app",
+           messagingSenderId: "951954536678",
+           appId: "1:951954536678:web:35893c65187e3abe492327"
+        };
+
+        // 📌 PRECIOS EXACTOS POR ROL Y SERVICIO
+        const PRECIOS = {
+            AY: { // Ayudante A
+                servicio_integral: 2.25,
+                mudanza: 2.25,
+                troncal_nueva: 2.25,
+                troncal_reemplazada: 1.12,
+                caja_nap_sangrado: 1.87,
+                caja_nap_interconexion: 1.87,
+                soporte_estandar: 1.12,
+                actualizacion_caja: 1.12,
+                manga1: 1.12,
+                manga2: 1.12,
+                manga3: 1.12,
+                manga4: 1.12,
+                hora_pon: 1.12,
+                mantenimiento_general: 1.12
+            },
+            BL: { // Técnico Líder B
+                servicio_integral: 2.62,
+                mudanza: 2.62,
+                troncal_nueva: 2.62,
+                troncal_reemplazada: 1.24,
+                caja_nap_sangrado: 3.62,
+                caja_nap_interconexion: 3.62,
+                soporte_estandar: 1.37,
+                actualizacion_caja: 1.37,
+                manga1: 1.37,
+                manga2: 1.37,
+                manga3: 1.37,
+                manga4: 1.37,
+                hora_pon: 1.37,
+                mantenimiento_general: 1.37
+            },
+            AL: { // Técnico Líder A
+                servicio_integral: 3.25,
+                mudanza: 3.25,
+                troncal_nueva: 3.75,
+                troncal_reemplazada: 1.87,
+                caja_nap_sangrado: 5.62,
+                caja_nap_interconexion: 5.62,
+                soporte_estandar: 2.37,
+                actualizacion_caja: 2.37,
+                manga1: 10.37,
+                manga2: 15.37,
+                manga3: 25.37,
+                manga4: 35.37,
+                hora_pon: 2.37,
+                mantenimiento_general: 2.37
+            }
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let usuarioActual = null;
+        let tipoUsuarioActual = "";
+        let datosActuales = [];
+        let filtroActivo = "todos";
+
+        // --- Autenticación ---
+        function mostrarRegistro() {
+            document.getElementById('pantallaLogin').classList.add('hidden');
+            document.getElementById('pantallaRegistro').classList.remove('hidden');
+        }
+        function volverLogin() {
+            document.getElementById('pantallaRegistro').classList.add('hidden');
+            document.getElementById('pantallaLogin').classList.remove('hidden');
+        }
+
+        async function crearCuenta() {
+            const correo = document.getElementById('nuevoCorreo').value.trim();
+            const clave = document.getElementById('nuevaClave').value.trim();
+            const tipoUsuario = document.getElementById('tipoUsuarioReg').value;
+
+            if(!correo || clave.length < 6) {
+                alert("Correo vacío o contraseña menor a 6 caracteres");
+                return;
+            }
+
+            try {
+                const cred = await auth.createUserWithEmailAndPassword(correo, clave);
+                await db.collection('usuarios').doc(cred.user.uid).set({
+                    tipoUsuario: tipoUsuario,
+                    correo: correo
+                });
+                alert("Cuenta creada correctamente");
+                volverLogin();
+            } catch(err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        function iniciarSesion() {
+            const correo = document.getElementById('correo').value.trim();
+            const clave = document.getElementById('clave').value.trim();
+            auth.signInWithEmailAndPassword(correo, clave)
+            .catch(err => {
+                document.getElementById('errorAuth').textContent = err.message;
+                document.getElementById('errorAuth').style.display = 'block';
+            });
+        }
+
+        function cerrarSesion() { auth.signOut(); }
+
+        auth.onAuthStateChanged(async user => {
+            usuarioActual = user;
+            if (user) {
+                document.getElementById('correoUsuario').textContent = user.email;
+                document.getElementById('pantallaLogin').classList.add('hidden');
+                document.getElementById('pantallaRegistro').classList.add('hidden');
+                document.getElementById('pantallaApp').classList.remove('hidden');
+
+                const refUsuario = db.collection('usuarios').doc(user.uid);
+                const doc = await refUsuario.get();
+
+                if (doc.exists && doc.data().tipoUsuario) {
+                    tipoUsuarioActual = doc.data().tipoUsuario;
+                } else {
+                    let tipoElegido = prompt("Este usuario no tiene rol asignado. Escribe: AY, BL o AL:");
+                    tipoElegido = tipoElegido ? tipoElegido.toUpperCase().trim() : "";
+                    while (!["AY","BL","AL"].includes(tipoElegido)) {
+                        tipoElegido = prompt("Rol inválido. Escribe solo AY, BL o AL:");
+                        tipoElegido = tipoElegido ? tipoElegido.toUpperCase().trim() : "";
+                    }
+                    tipoUsuarioActual = tipoElegido;
+                    await refUsuario.set({correo: user.email, tipoUsuario: tipoUsuarioActual}, { merge: true });
+                }
+
+                const nombresRol = {AY:"Ayudante A", BL:"Técnico Líder B", AL:"Técnico Líder A"};
+                document.getElementById('tipoUsuarioMostrar').textContent = nombresRol[tipoUsuarioActual];
+                iniciarInterfaz();
+            } else {
+                document.getElementById('pantallaLogin').classList.remove('hidden');
+                document.getElementById('pantallaRegistro').classList.add('hidden');
+                document.getElementById('pantallaApp').classList.add('hidden');
+                tipoUsuarioActual = "";
+                datosActuales = [];
+                filtroActivo = "todos";
+                cancelarEdicion();
+            }
+        });
+
+        // --- Interfaz ---
+        function iniciarInterfaz() {
+            const hoy = new Date();
+            document.getElementById('fecha').valueAsDate = hoy;
+            const anioSel = document.getElementById('anioElegido');
+            const anioAct = hoy.getFullYear();
+            for(let a=anioAct-2; a<=anioAct+1; a++) {
+                const opt = document.createElement('option');
+                opt.value = a; opt.textContent = a;
+                if(a===anioAct) opt.selected=true;
+                anioSel.appendChild(opt);
+            }
+            document.getElementById('mesElegido').value = hoy.getMonth();
+            cambiarTipoServicio();
+            cargarDatos();
+        }
+
+        function cambiarTipoServicio() {
+            const servicio = document.getElementById('tipoServicio').value;
+            document.getElementById('precio').value = PRECIOS[tipoUsuarioActual][servicio].toFixed(2);
+            document.querySelectorAll('.error').forEach(e => e.style.display = 'none');
+        }
+
+        function cambiarMes() { 
+            filtroActivo = "todos";
+            actualizarEstadoContadores();
+            cargarDatos(); 
+        }
+
+        // 🎯 FILTRO AL HACER CLIC EN LOS CONTADORES
+        function filtrarPorContador(tipo) {
+            filtroActivo = tipo;
+            actualizarEstadoContadores();
+            cargarDatos();
+        }
+
+        function actualizarEstadoContadores() {
+            // Quitar todas las clases de estado
+            document.querySelectorAll('.contador-item').forEach(el => {
+                el.classList.remove('activo-inst','activo-mud','activo-sop','activo-todos');
+            });
+
+            // Asignar clase según filtro
+            if(filtroActivo === 'instalacion') document.querySelector('.contador-item:nth-child(1)').classList.add('activo-inst');
+            if(filtroActivo === 'mudanza')    document.querySelector('.contador-item:nth-child(2)').classList.add('activo-mud');
+            if(filtroActivo === 'soporte')    document.querySelector('.contador-item:nth-child(3)').classList.add('activo-sop');
+            if(filtroActivo === 'todos')      document.querySelector('.contador-item:nth-child(4)').classList.add('activo-todos');
+
+            // Etiqueta informativa
+            const etiqueta = document.getElementById('etiquetaFiltroActivo');
+            const textos = {
+                todos: "",
+                instalacion: " • Filtrado: Solo instalaciones 🟢",
+                mudanza: " • Filtrado: Solo mudanzas 🟣",
+                soporte: " • Filtrado: Solo soportes/servicios 🟠"
+            };
+            etiqueta.textContent = textos[filtroActivo] || "";
+        }
+
+        function validarDatos() {
+            let ok = true;
+            if(!document.getElementById('nombre').value.trim()) {document.getElementById('errorNombre').style.display='block'; ok=false;}
+            if(!document.getElementById('cedula').value.trim()) {document.getElementById('errorCedula').style.display='block'; ok=false;}
+            return ok;
+        }
+
+        // ✅ FUNCIÓN GUARDAR - RESTAURADA Y CORREGIDA
+        async function guardarServicio() {
+            if(!validarDatos()) return;
+
+            const idEditar = document.getElementById('idRegistroEditar').value;
+            const datos = {
+                fecha: document.getElementById('fecha').value,
+                nombre: document.getElementById('nombre').value.trim(),
+                cedula: document.getElementById('cedula').value.trim(),
+                tipo: document.getElementById('tipoServicio').value,
+                serial: document.getElementById('serial').value.trim(),
+                precio: parseFloat(document.getElementById('precio').value)
+            };
+
+            try {
+                if(idEditar) {
+                    // ACTUALIZACIÓN
+                    await db.collection('usuarios').doc(usuarioActual.uid).collection('registros').doc(idEditar).update(datos);
+                    mostrarMensaje("✅ Registro actualizado correctamente", "exito");
+                } else {
+                    // NUEVO
+                    await db.collection('usuarios').doc(usuarioActual.uid).collection('registros').add(datos);
+                    mostrarMensaje("✅ Registro guardado correctamente", "exito");
+                }
+                cancelarEdicion();
+                cargarDatos();
+            } catch(e) {
+                mostrarMensaje("❌ Error: " + e.message, "fallo");
+            }
+        }
+
+        // --- 📝 EDICIÓN Y ELIMINACIÓN - CORREGIDAS ---
+        function editarRegistro(id) {
+            const ref = db.collection('usuarios').doc(usuarioActual.uid).collection('registros').doc(id);
+            ref.get().then(doc => {
+                if (doc.exists) {
+                    const d = doc.data();
+                    document.getElementById('idRegistroEditar').value = id;
+                    document.getElementById('fecha').value = d.fecha || "";
+                    document.getElementById('nombre').value = d.nombre || "";
+                    document.getElementById('cedula').value = d.cedula || "";
+                    document.getElementById('tipoServicio').value = d.tipo || "servicio_integral";
+                    document.getElementById('serial').value = d.serial || "";
+                    cambiarTipoServicio();
+                    document.getElementById('btnGuardar').textContent = "Actualizar Registro";
+                    document.getElementById('btnCancelar').style.display = "inline-block";
+                    document.getElementById('formularioServicio').classList.add('edicion-activa');
+                    window.scrollTo({top:0, behavior:'smooth'});
+                }
+            }).catch(err => {
+                mostrarMensaje("❌ Al cargar para editar: " + err.message, "fallo");
+            });
+        }
+
+        async function eliminarRegistro(id) {
+            if (!confirm("¿Seguro que quieres eliminar este registro? Esta acción no se puede deshacer.")) return;
+            try {
+                await db.collection('usuarios').doc(usuarioActual.uid).collection('registros').doc(id).delete();
+                mostrarMensaje("✅ Registro eliminado correctamente", "exito");
+                cargarDatos();
+            } catch (e) {
+                mostrarMensaje("❌ Error al eliminar: " + e.message, "fallo");
+            }
+        }
+
+        function cancelarEdicion() {
+            document.getElementById('idRegistroEditar').value = "";
+            document.getElementById('btnGuardar').textContent = "Guardar Registro";
+            document.getElementById('btnCancelar').style.display = "none";
+            document.getElementById('formularioServicio').classList.remove('edicion-activa');
+            limpiarFormulario();
+        }
+
+        // --- 📤 EXPORTACIÓN ---
+        function exportarExcel() {
+            if (!datosActuales.length) { alert("No hay datos para exportar."); return; }
+            const hoja = XLSX.utils.json_to_sheet(datosActuales);
+            const libro = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(libro, hoja, "Servicios");
+            XLSX.writeFile(libro, `Servicios_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function exportarPDF() {
+            if (!datosActuales.length) { alert("No hay datos para exportar."); return; }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(14);
+            doc.text("Reporte de Servicios", 14, 15);
+            doc.setFontSize(10);
+            const nombresRol = {AY:"Ayudante A", BL:"Técnico Líder B", AL:"Técnico Líder A"};
+            doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 22);
+            doc.text(`Rol: ${nombresRol[tipoUsuarioActual]}`, 14, 28);
+
+            const columnas = ["Fecha", "Tipo de Servicio", "Cliente", "Cédula", "Detalle", "Precio"];
+            const filas = datosActuales.map(r => [
+                r.Fecha, r["Tipo de Servicio"], r.Cliente, r.Cédula, r.Detalle, r.Precio
+            ]);
+
+            doc.autoTable({
+                head: [columnas],
+                body: filas,
+                startY: 35,
+                theme: 'grid',
+                styles: { fontSize: 9 }
+            });
+
+            doc.save(`Servicios_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+
+        // --- 📚 CLASIFICACIÓN DE SERVICIOS ---
+        const clasificacionServicio = {
+            instalacion: ["servicio_integral","troncal_nueva","troncal_reemplazada","caja_nap_sangrado","caja_nap_interconexion","manga1","manga2","manga3","manga4"],
+            mudanza: ["mudanza"],
+            soporte: ["soporte_estandar","actualizacion_caja","hora_pon","mantenimiento_general"]
+        };
+
+        const nombresServicios = {
+            servicio_integral: "Servicio integral de instalación nueva",
+            mudanza: "Mudanzas",
+            troncal_nueva: "Troncal nueva (c/300mts)",
+            troncal_reemplazada: "Troncal reemplazada (c/300mts)",
+            caja_nap_sangrado: "Caja NAP con técnico de sangrado",
+            caja_nap_interconexion: "Caja NAP de interconexión",
+            soporte_estandar: "Soporte estándar",
+            actualizacion_caja: "Actualización de caja",
+            manga1: "Manga 1 tubing",
+            manga2: "Manga 2 tubing",
+            manga3: "Manga 3 tubing",
+            manga4: "Manga 4 tubing",
+            hora_pon: "Horario pon por hora",
+            mantenimiento_general: "Mantenimiento general por hora"
+        };
+
+        // --- CARGA Y ORDEN DE DATOS ---
+        async function cargarDatos() {
+            const lista = document.getElementById('listaServicios');
+            const totalElem = document.getElementById('totalMes');
+            const cargando = document.getElementById('cargando');
+            lista.innerHTML = ""; 
+            totalElem.textContent = "0.00"; 
+            cargando.style.display = "block";
+            datosActuales = [];
+
+            let contInst = 0, contMud = 0, contSop = 0, totalDinero = 0;
+            const mesSel = String(parseInt(document.getElementById('mesElegido').value) + 1).padStart(2, '0');
+            const anioSel = document.getElementById('anioElegido').value;
+            const prefijoFecha = `${anioSel}-${mesSel}`;
+            const textoBuscar = document.getElementById('buscarNombre').value.trim().toLowerCase();
+
+            try {
+                const snap = await db.collection('usuarios').doc(usuarioActual.uid).collection('registros').get();
+                cargando.style.display = "none";
+
+                let registrosArray = [];
+
+                if (!snap.empty) {
+                    // Convertir a arreglo para ordenar por FECHA DESCENDENTE
+                    snap.forEach(doc => {
+                        registrosArray.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    registrosArray.sort((a, b) => {
+                        if (!a.fecha) return 1;
+                        if (!b.fecha) return -1;
+                        return b.fecha.localeCompare(a.fecha);
+                    });
+
+                    registrosArray.forEach(d => {
+                        const coincideFecha = d.fecha && d.fecha.startsWith(prefijoFecha);
+                        const tipoClase = clasificacionServicio.instalacion.includes(d.tipo) ? "instalacion" : 
+                                          clasificacionServicio.mudanza.includes(d.tipo) ? "mudanza" : "soporte";
+                        const coincideTexto = !textoBuscar || (d.nombre || "").toLowerCase().includes(textoBuscar);
+                        const coincideFiltro = filtroActivo === "todos" || tipoClase === filtroActivo;
+
+                        if (coincideFecha && coincideTexto && coincideFiltro) {
+                            // Conteo total del mes
+                            if(clasificacionServicio.instalacion.includes(d.tipo)) contInst++;
+                            else if(clasificacionServicio.mudanza.includes(d.tipo)) contMud++;
+                            else contSop++;
+
+                            totalDinero += d.precio || 0;
+
+                            // Para exportar
+                            datosActuales.push({
+                                "Fecha": d.fecha || "",
+                                "Tipo de Servicio": nombresServicios[d.tipo] || d.tipo,
+                                "Cliente": d.nombre || "",
+                                "Cédula": d.cedula || "",
+                                "Detalle": d.serial || "",
+                                "Precio": "$" + (d.precio || 0).toFixed(2)
+                            });
+
+                            // Elemento visual con color
+                            const li = document.createElement('li');
+                            li.className = `registro-item tipo-${tipoClase}`;
+                            li.innerHTML = `
+                                <div class="registro-contenido">
+                                    <strong>${d.fecha} | ${nombresServicios[d.tipo] || d.tipo}</strong><br>
+                                    Cliente: ${d.nombre} - Cédula: ${d.cedula}<br>
+                                    Detalle: ${d.serial || "Sin datos"}<br>
+                                    <strong>$${(d.precio || 0).toFixed(2)}</strong>
+                                </div>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                    <button class="btn-editar" onclick="editarRegistro('${d.id}')">Editar</button>
+                                    <button class="btn-eliminar" onclick="eliminarRegistro('${d.id}')">Eliminar</button>
+                                </div>
+                            `;
+                            lista.appendChild(li);
+                        }
+                    });
+                    totalElem.textContent = totalDinero.toFixed(2);
+                } else {
+                    lista.innerHTML = "<li style='padding:15px; color:#666;'>Sin registros</li>";
+                }
+
+                // Actualizar contadores
+                document.getElementById('contadorInstalacion').textContent = contInst;
+                document.getElementById('contadorMudanza').textContent = contMud;
+                document.getElementById('contadorSoporte').textContent = contSop;
+                document.getElementById('contadorGeneral').textContent = contInst + contMud + contSop;
+
+            } catch(e) {
+                cargando.style.display = "none";
+                lista.innerHTML = `<li style='color:red;'>Error al cargar: ${e.message}</li>`;
+            }
+        }
+
+        function limpiarFormulario() {
+            document.getElementById('nombre').value = "";
+            document.getElementById('cedula').value = "";
+            document.getElementById('serial').value = "";
+            const hoy = new Date();
+            document.getElementById('fecha').valueAsDate = hoy;
+            cambiarTipoServicio();
+        }
+        function mostrarMensaje(texto, clase) {
+            const m = document.getElementById('mensajeEstado');
+            m.textContent = texto;
+            m.className = "mensaje " + clase;
+            setTimeout(() => { m.className = "mensaje"; m.textContent = ""; }, 4000);
+        }
+    </script>
+</body>
+</html>
